@@ -1,65 +1,55 @@
 # app.py
-# Streamlit UI to run generate_city_risk.process_city and show results
-# Requirements: streamlit, streamlit_folium, folium
+# Streamlit UI for EPICS Road Risk System
 
 import streamlit as st
 import os
-import folium
-from streamlit_folium import st_folium
 from generate_city_risk import process_city
+import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Road Risk — EPICS", layout="wide")
-st.title("Road Risk — EPICS (Generate & View)")
-st.markdown("Select a city and click **Generate**. This runs the pipeline (OSMnx → segments → risk → maps).")
+st.set_page_config(page_title="EPICS Road Risk", layout="wide")
 
-city = st.text_input("City (place name for OSM)", "Bhopal, Madhya Pradesh, India")
-outdir = st.text_input("Output folder", "data")
+st.title("🚗 EPICS Road Risk — Live City Risk Generator")
+st.markdown("Enter a city name and click **Generate** to run the full pipeline.")
 
-col1, col2 = st.columns([1, 3])
+# Inputs
+city = st.text_input("City name", "Bhopal, Madhya Pradesh, India")
+outdir = st.text_input("Output directory", "data")
 
-with col1:
-    if st.button("Generate risk map"):
-        st.info("Processing — this can take a few minutes for a large city.")
-        try:
-            result = process_city(city, out_dir=outdir, verbose=True)
-            st.success("Processing finished.")
-            st.write(result)
-            st.session_state["last_result"] = result
-        except Exception as e:
-            st.error(f"Error: {e}")
-            st.stop()
+if st.button("Generate"):
+    st.info("Processing city… This may take a few minutes.")
 
-with col2:
-    if "last_result" in st.session_state:
-        res = st.session_state["last_result"]
+    try:
+        result = process_city(city, out_dir=outdir, verbose=True)
+        st.success("Completed successfully!")
+        st.session_state["result"] = result
 
-        # ---------------- Segments map ----------------
-        seg_map = res.get("seg_map_obj")  # folium.Map object
-        if seg_map:
-            st.subheader("Risk map (segments)")
-            st_folium(seg_map, width=900, height=600)
-        else:
-            # fallback if HTML file exists
-            seg_map_file = res.get("seg_map")
-            if seg_map_file and os.path.exists(seg_map_file):
-                st.subheader("Risk map (segments)")
-                html = open(seg_map_file, 'r', encoding='utf-8').read()
-                st_folium(folium.Html(html, script=True), width=900, height=600)
+    except Exception as e:
+        st.error(f"Error: {e}")
 
-        # ---------------- Heatmap ----------------
-        heat_map = res.get("heat_map_obj")  # folium.Map object
-        if heat_map:
-            st.subheader("Heatmap")
-            st_folium(heat_map, width=900, height=600)
-        else:
-            heat_map_file = res.get("heat_map")
-            if heat_map_file and os.path.exists(heat_map_file):
-                st.subheader("Heatmap")
-                html = open(heat_map_file, 'r', encoding='utf-8').read()
-                st_folium(folium.Html(html, script=True), width=900, height=600)
-
-    else:
-        st.info("No results yet. Click Generate.")
-
+# SHOW RESULTS
 st.markdown("---")
-st.markdown("Files will be saved under `data/<city_slug>/`.")
+
+if "result" in st.session_state:
+
+    result = st.session_state["result"]
+
+    seg_map_file = result["seg_map_html"]
+    heat_map_file = result["heat_map_html"]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Segment Risk Map")
+        if os.path.exists(seg_map_file):
+            with open(seg_map_file, "r", encoding="utf-8") as f:
+                html = f.read()
+            components.html(html, height=600)
+
+    with col2:
+        st.subheader("Heat Map")
+        if os.path.exists(heat_map_file):
+            with open(heat_map_file, "r", encoding="utf-8") as f:
+                html = f.read()
+            components.html(html, height=600)
+
+st.markdown("All files saved inside the project folder under `data/<city_slug>`.")
