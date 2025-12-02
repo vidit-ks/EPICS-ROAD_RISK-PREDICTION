@@ -5,6 +5,7 @@
 import streamlit as st
 import os
 from generate_city_risk import process_city
+from pathlib import Path
 
 st.set_page_config(page_title="Road Risk — EPICS", layout="wide")
 
@@ -23,8 +24,6 @@ with col1:
             result = process_city(city, out_dir=outdir, verbose=True)
             st.success("Processing finished.")
             st.write(result)
-            seg_map = result.get("seg_map")
-            heat_map = result.get("heat_map")
             st.session_state["last_result"] = result
         except Exception as e:
             st.error(f"Error: {e}")
@@ -33,14 +32,22 @@ with col1:
 with col2:
     if "last_result" in st.session_state:
         res = st.session_state["last_result"]
-        if res.get("seg_map") and os.path.exists(res["seg_map"]):
-            st.subheader("Risk map (segments)")
-            from streamlit_folium import st_folium
-            st_folium(res["seg_map"], width=900, height=600)
-        if res.get("heat_map") and os.path.exists(res["heat_map"]):
-            st.subheader("Heatmap")
-            from streamlit_folium import st_folium
-            st_folium(res["heat_map"], width=900, height=600)
+
+        # Function to safely display Folium maps
+        def safe_show_map(map_path, title):
+            if map_path and Path(map_path).exists() and os.path.getsize(map_path) > 0:
+                st.subheader(title)
+                from streamlit_folium import st_folium
+                try:
+                    st_folium(map_path, width=900, height=600)
+                except Exception as e:
+                    st.warning(f"Could not render {title}: {e}")
+            else:
+                st.warning(f"{title} not available or empty.")
+
+        safe_show_map(res.get("seg_map"), "Risk map (segments)")
+        safe_show_map(res.get("heat_map"), "Heatmap")
+
     else:
         st.info("No results yet. Click Generate.")
 
